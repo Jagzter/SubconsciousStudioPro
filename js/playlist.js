@@ -47,7 +47,7 @@ const Playlist = (() => {
     // Android note:
     // Some Android gallery/photo-picker apps ignore the HTML "multiple" attribute and return only one image.
     // This code keeps previously selected images and lets users press Select Images repeatedly to append more.
-    // Where supported, the File System Access API is used first because it honours multiple selection more reliably.
+    // This version uses the standard Android-compatible picker and appends each selection.
     document.getElementById('selectImagesBtn').onclick=openImageSelector;
     document.getElementById('selectImageFolderBtn').onclick=()=>imageFolderInput().click();
 
@@ -55,6 +55,10 @@ const Playlist = (() => {
     imageInput().setAttribute('accept','image/*,.png,.jpg,.jpeg,.gif,.webp,.bmp,.svg');
     imageInput().addEventListener('change',e=>{
       const files=[...e.target.files];
+      if(!files.length){
+        updateFolderStatus('No image was returned by Android. Try Photos, Gallery, Files, or Select Image Folder.');
+        return;
+      }
       addImages(files, true, 'selected');
       e.target.value='';
     });
@@ -71,25 +75,13 @@ const Playlist = (() => {
     render();
   }
 
-  async function openImageSelector(){
-    // Prefer modern picker when available. It is better for genuine multi-select on supported browsers.
-    if(window.showOpenFilePicker){
-      try{
-        const handles = await window.showOpenFilePicker({
-          multiple:true,
-          excludeAcceptAllOption:false,
-          types:[{description:'Images', accept:{'image/*':['.png','.jpg','.jpeg','.gif','.webp','.bmp','.svg']}}]
-        });
-        const files=[];
-        for(const h of handles) files.push(await h.getFile());
-        addImages(files, true, 'selected');
-        return;
-      }catch(err){
-        // User cancelled or API blocked: fall back to the normal input.
-        if(err && err.name==='AbortError') return;
-      }
-    }
-    imageInput().click();
+  function openImageSelector(){
+    // Use the standard file input for maximum Android compatibility.
+    // Some Android gallery/photo pickers do not work reliably with showOpenFilePicker(),
+    // so we deliberately avoid it here and let the browser/Android system picker handle images.
+    const input=imageInput();
+    input.value='';
+    input.click();
   }
 
   function textItems(){

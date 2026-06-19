@@ -35,3 +35,7 @@
 @media(max-width:760px){.bannerCopyright{text-align:left}.copyrightLine{font-size:12px}#dashboard > .grid.cards,#dashboard #statsPanel{grid-template-columns:repeat(auto-fit,minmax(105px,1fr))}}
 /* v2.2.0 file/folder loading refinements */
 .compactStatus{font-size:72%;padding:7px 10px;margin:6px 0 8px;border-radius:10px;color:var(--muted)}
+
+.versionLine{font-size:13px;color:var(--muted);margin-top:8px;letter-spacing:.04em;text-align:center}
+.bannerVersion{font-size:12px;color:var(--muted);font-weight:700;margin-left:8px;vertical-align:middle}
+.aboutCard p{margin:.45rem 0}

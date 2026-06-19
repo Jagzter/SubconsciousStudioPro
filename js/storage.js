@@ -1,7 +1,7 @@
 const Storage = (() => {
   const key = 'ssp_project_v21';
   function snapshot(){
-    return { projectName: App.state.projectName, viewMode: App.state.viewMode, theme: document.body.classList.contains('light')?'light':'dark', playlist: Playlist.serialise(), settings: Player.getSettings(), stats: Stats.data, version:'2.1' };
+    return { projectName: App.state.projectName, viewMode: App.state.viewMode, theme: document.body.classList.contains('light')?'light':'dark', playlist: Playlist.serialise(), settings: Player.getSettings(), stats: Stats.data, version:(window.APP_CONFIG&&APP_CONFIG.version)||'2.2.4' };
   }
   function saveLocal(){ try{localStorage.setItem(key, JSON.stringify(snapshot()));}catch{} }
   function loadLocal(){ try{return JSON.parse(localStorage.getItem(key)||'null')}catch{return null} }

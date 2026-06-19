@@ -1,6 +1,7 @@
 const App = (()=>{
   const state={projectName:'Untitled Project', viewMode:'dashboard'};
   function init(){
+    applyBranding();
     document.querySelectorAll('.navBtn').forEach(b=>b.onclick=()=>openTab(b.dataset.tab));
     document.getElementById('dashboardControlsBtn').onclick=()=>document.getElementById('allControlsPanel').classList.toggle('hidden');
     document.getElementById('projectNameInput').oninput=e=>{state.projectName=e.target.value||'Untitled Project'; updateCounts(); Storage.saveLocal();};
@@ -16,6 +17,18 @@ const App = (()=>{
     Playlist.init(); AudioStudio.init(); Player.init(); buildAllControls(); loadSaved(); updateCounts(); Stats.render();
     if('serviceWorker' in navigator){ navigator.serviceWorker.register('./sw.js').catch(()=>{}); }
     window.addEventListener('keydown',e=>{ if(e.target.matches('input,textarea,select'))return; const k=e.key.toLowerCase(); if(k==='h') setViewMode(state.viewMode==='dashboard'?'focus':'dashboard'); if(k==='d') setViewMode('dashboard'); if(k==='p') setViewMode('presentation'); });
+  }
+
+  function applyBranding(){
+    const cfg = window.APP_CONFIG || APP_CONFIG || {version:'2.2.4',build:'2026-06-19',copyright:'© JR Hypnotherapy 2026',name:'Subconscious Studio Pro'};
+    const set=(id,text)=>{ const el=document.getElementById(id); if(el) el.textContent=text; };
+    set('splashVersion', 'Version ' + cfg.version);
+    set('bannerVersion', 'v' + cfg.version);
+    set('aboutName', cfg.name);
+    set('aboutVersion', cfg.version);
+    set('aboutBuild', cfg.build);
+    set('aboutCopyright', cfg.copyright);
+    document.title = cfg.name + ' v' + cfg.version;
   }
   function openTab(id){document.querySelectorAll('.navBtn').forEach(b=>b.classList.toggle('active',b.dataset.tab===id)); document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.id===id));}
   function buildAllControls(){
