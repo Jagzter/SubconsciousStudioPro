@@ -3,7 +3,6 @@ const Playlist = (() => {
   // The internal items array stores only non-text playlist items such as images and blank pauses.
   let items=[];
   let media=[];
-  let defaultImageDirHandle=null;
 
   const textBox = () => document.getElementById('affirmationInput');
   const folderStatus = () => document.getElementById('imageFolderStatus');
@@ -47,16 +46,10 @@ const Playlist = (() => {
     document.getElementById('imageFileInput').addEventListener('change',e=>{addImages([...e.target.files], true); e.target.value='';});
     document.getElementById('imageFolderInput').addEventListener('change',e=>{addImages([...e.target.files], true); e.target.value=''; updateFolderStatus('Images loaded from selected folder.');});
 
-    const setDefaultBtn=document.getElementById('setDefaultImageFolderBtn');
-    const loadDefaultBtn=document.getElementById('loadDefaultImageFolderBtn');
-    if(setDefaultBtn) setDefaultBtn.onclick=setDefaultImageFolder;
-    if(loadDefaultBtn) loadDefaultBtn.onclick=loadDefaultImageFolder;
-
     makeDrop(document.getElementById('playlistList'), files=>addImages(files,true),'image');
     const mediaList = document.getElementById('mediaList');
     if (mediaList) makeDrop(mediaList, files=>addImages(files,false),'image');
 
-    restoreDefaultImageFolderHandle();
     render();
   }
 
@@ -90,106 +83,6 @@ const Playlist = (() => {
     });
     if(images.length) updateFolderStatus(`${images.length} image${images.length===1?'':'s'} loaded.`);
     render();
-  }
-
-  async function setDefaultImageFolder(){
-    if(!('showDirectoryPicker' in window)){
-      alert('Your browser does not support saving a default folder. Use Select Image Folder instead. Chrome or Edge over HTTPS/GitHub Pages supports this best.');
-      document.getElementById('imageFolderInput').click();
-      return;
-    }
-    try{
-      const handle=await window.showDirectoryPicker({mode:'read'});
-      defaultImageDirHandle=handle;
-      await saveDirectoryHandle(handle);
-      updateFolderStatus(`Default image folder set: ${handle.name}`);
-      await loadDefaultImageFolder();
-    }catch(err){
-      if(err && err.name!=='AbortError') alert('Could not set the default image folder.');
-    }
-  }
-
-  async function loadDefaultImageFolder(){
-    if(!defaultImageDirHandle){
-      await restoreDefaultImageFolderHandle();
-    }
-    if(!defaultImageDirHandle){
-      updateFolderStatus('No default image folder set yet.');
-      if(!('showDirectoryPicker' in window)) document.getElementById('imageFolderInput').click();
-      return;
-    }
-    try{
-      const permission=await verifyPermission(defaultImageDirHandle);
-      if(!permission){
-        updateFolderStatus('Permission is needed to read the default image folder.');
-        return;
-      }
-      const files=[];
-      for await (const entry of defaultImageDirHandle.values()){
-        if(entry.kind==='file' && /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(entry.name)){
-          const file=await entry.getFile();
-          files.push(file);
-        }
-      }
-      addImages(files, true);
-      updateFolderStatus(`Loaded ${files.length} image${files.length===1?'':'s'} from default folder: ${defaultImageDirHandle.name}`);
-    }catch(err){
-      updateFolderStatus('Could not load the default image folder. Please set it again.');
-    }
-  }
-
-  async function verifyPermission(handle){
-    const opts={mode:'read'};
-    if((await handle.queryPermission(opts))==='granted') return true;
-    return (await handle.requestPermission(opts))==='granted';
-  }
-
-  function idbOpen(){
-    return new Promise((resolve,reject)=>{
-      const req=indexedDB.open('ssp_file_handles',1);
-      req.onupgradeneeded=()=>req.result.createObjectStore('handles');
-      req.onsuccess=()=>resolve(req.result);
-      req.onerror=()=>reject(req.error);
-    });
-  }
-
-  async function saveDirectoryHandle(handle){
-    if(!('indexedDB' in window)) return;
-    const db=await idbOpen();
-    await new Promise((resolve,reject)=>{
-      const tx=db.transaction('handles','readwrite');
-      tx.objectStore('handles').put(handle,'defaultImageDir');
-      tx.oncomplete=resolve;
-      tx.onerror=()=>reject(tx.error);
-    });
-    db.close();
-  }
-
-  async function restoreDefaultImageFolderHandle(){
-    if(!('indexedDB' in window)) return;
-    try{
-      const db=await idbOpen();
-      const handle=await new Promise((resolve,reject)=>{
-        const tx=db.transaction('handles','readonly');
-        const req=tx.objectStore('handles').get('defaultImageDir');
-        req.onsuccess=()=>resolve(req.result||null);
-        req.onerror=()=>reject(req.error);
-      });
-      db.close();
-      if(handle){
-        defaultImageDirHandle=handle;
-        updateFolderStatus(`Default image folder remembered: ${handle.name}. Press Load Default Images to load it.`);
-      }else{
-        updateFolderStatus('No default image folder set.');
-      }
-    }catch{
-      updateFolderStatus('No default image folder set.');
-    }
-  }
-
-  function updateFolderStatus(msg){
-    const el=folderStatus();
-    if(el) el.textContent=msg;
   }
 
   function render(){
@@ -254,5 +147,5 @@ const Playlist = (() => {
 
   function escapeHtml(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));}
 
-  return {init, getItems, serialise, loadSerialised, render, addImages, loadDefaultImageFolder};
+  return {init, getItems, serialise, loadSerialised, render, addImages};
 })();
