@@ -6,6 +6,9 @@ const App = (()=>{
     document.getElementById('dashboardControlsBtn').onclick=()=>document.getElementById('allControlsPanel').classList.toggle('hidden');
     document.getElementById('projectNameInput').oninput=e=>{state.projectName=e.target.value||'Untitled Project'; updateCounts(); Storage.saveLocal();};
     document.getElementById('saveProjectBtn').onclick=Storage.downloadProject;
+    document.getElementById('exportBundleBtn').onclick=Storage.downloadBundle;
+    document.getElementById('importBundleBtn').onclick=()=>document.getElementById('bundleImportInput').click();
+    document.getElementById('bundleImportInput').addEventListener('change',importBundle);
     document.getElementById('newProjectBtn').onclick=()=>{if(confirm('Start a new project?')){localStorage.removeItem('ssp_project_v21'); location.reload();}};
     document.getElementById('importProjectBtn').onclick=()=>document.getElementById('playlistImportInput').click();
     document.getElementById('playlistImportInput').addEventListener('change',importProject);
@@ -20,7 +23,7 @@ const App = (()=>{
   }
 
   function applyBranding(){
-    const cfg = window.APP_CONFIG || APP_CONFIG || {version:'2.2.4',build:'2026-06-19',copyright:'© JR Hypnotherapy 2026',name:'Subconscious Studio Pro'};
+    const cfg = window.APP_CONFIG || APP_CONFIG || {version:'2.2.5',build:'2026-06-19',copyright:'© JR Hypnotherapy 2026',name:'Subconscious Studio Pro'};
     const set=(id,text)=>{ const el=document.getElementById(id); if(el) el.textContent=text; };
     set('splashVersion', 'Version ' + cfg.version);
     set('bannerVersion', 'v' + cfg.version);
@@ -45,8 +48,38 @@ const App = (()=>{
     Storage.saveLocal();
   }
   function updateCounts(){document.getElementById('currentProjectName').textContent=state.projectName; document.getElementById('dashItemCount').textContent=Playlist.getItems().length;}
-  function importProject(e){ const file=e.target.files[0]; if(!file)return; const reader=new FileReader(); reader.onload=()=>{ try{ const data=JSON.parse(reader.result); if(data.projectName){state.projectName=data.projectName; document.getElementById('projectNameInput').value=state.projectName;} if(data.playlist)Playlist.loadSerialised(data.playlist); if(data.settings)Player.applySettings(data.settings); if(data.stats)Stats.load(data.stats); } catch{ document.getElementById('affirmationInput').value=reader.result; document.getElementById('addTextBtn').click(); } updateCounts(); Storage.saveLocal(); }; reader.readAsText(file); e.target.value=''; }
-  function loadSaved(){ const data=Storage.loadLocal(); if(!data)return; state.projectName=data.projectName||state.projectName; document.getElementById('projectNameInput').value=state.projectName; if(data.theme==='light')document.body.classList.add('light'); if(data.playlist)Playlist.loadSerialised(data.playlist); if(data.settings)Player.applySettings(data.settings); if(data.stats)Stats.load(data.stats); if(data.viewMode)setViewMode(data.viewMode); }
+
+  function applyProjectData(data){
+    if(data.projectName){state.projectName=data.projectName; document.getElementById('projectNameInput').value=state.projectName;}
+    if(data.theme==='light') document.body.classList.add('light'); else if(data.theme==='dark') document.body.classList.remove('light');
+    if(data.playlist)Playlist.loadSerialised(data.playlist);
+    if(data.settings)Player.applySettings(data.settings);
+    if(data.stats)Stats.load(data.stats);
+    if(data.viewMode) setViewMode(data.viewMode);
+    updateCounts();
+    Storage.saveLocal();
+  }
+
+  function importBundle(e){
+    const file=e.target.files[0];
+    if(!file)return;
+    const reader=new FileReader();
+    reader.onload=()=>{
+      try{
+        const data=JSON.parse(reader.result);
+        applyProjectData(data);
+        alert('Full bundle imported. Affirmations, images, settings and statistics have been restored.');
+      }catch(err){
+        alert('That file could not be imported as a Subconscious Studio bundle.');
+        console.error(err);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value='';
+  }
+
+  function importProject(e){ const file=e.target.files[0]; if(!file)return; const reader=new FileReader(); reader.onload=()=>{ try{ const data=JSON.parse(reader.result); applyProjectData(data); } catch{ document.getElementById('affirmationInput').value=reader.result; Playlist.render(); } updateCounts(); Storage.saveLocal(); }; reader.readAsText(file); e.target.value=''; }
+  function loadSaved(){ const data=Storage.loadLocal(); if(!data)return; applyProjectData(data); }
   return {init,state,updateCounts,setViewMode};
 })();
 window.addEventListener('DOMContentLoaded',App.init);

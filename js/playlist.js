@@ -112,7 +112,7 @@ const Playlist = (() => {
   function addImages(files, addToPlaylist, source='selected'){
     const images=(files||[]).filter(isImageFile);
     images.forEach(file=>{
-      const obj={type:'image', name:file.webkitRelativePath || file.name || 'Image', url:URL.createObjectURL(file), label:file.name || 'Image'};
+      const obj={type:'image', name:file.webkitRelativePath || file.name || 'Image', url:URL.createObjectURL(file), label:file.name || 'Image', file};
       media.push(obj);
       if(addToPlaylist) items.push(obj);
     });
@@ -172,18 +172,47 @@ const Playlist = (() => {
   function serialise(){
     return getItems()
       .filter(x=>x.type==='text'||x.type==='blank')
-      .map(x=>x.type==='text'?{type:'text',text:x.text}:{type:'blank'});
+      .map(x=>x.type==='text'?{type:'text',text:x.text}:{type:'blank', duration:x.duration||1});
+  }
+
+  async function serialiseFullBundle(){
+    const full=[];
+    for(const x of getItems()){
+      if(x.type==='text') full.push({type:'text', text:x.text});
+      else if(x.type==='blank') full.push({type:'blank', duration:x.duration||1});
+      else if(x.type==='image'){
+        let dataUrl=x.dataUrl || null;
+        if(!dataUrl && x.file) dataUrl = await fileToDataURL(x.file);
+        if(dataUrl) full.push({type:'image', name:x.name||'Image', dataUrl});
+      }
+    }
+    return full;
   }
 
   function loadSerialised(arr){
     const text=[];
     items=[];
+    media=[];
     (arr||[]).forEach(x=>{
       if(x.type==='text') text.push(x.text||'');
       else if(x.type==='blank') items.push({type:'blank', duration:x.duration||1, label:'Blank pause'});
+      else if(x.type==='image' && x.dataUrl){
+        const obj={type:'image', name:x.name||'Image', url:x.dataUrl, dataUrl:x.dataUrl, label:x.name||'Image'};
+        media.push(obj);
+        items.push(obj);
+      }
     });
     textBox().value=text.filter(Boolean).join('\n');
     render();
+  }
+
+  function fileToDataURL(file){
+    return new Promise((resolve,reject)=>{
+      const reader=new FileReader();
+      reader.onload=()=>resolve(reader.result);
+      reader.onerror=()=>reject(reader.error || new Error('Could not read file'));
+      reader.readAsDataURL(file);
+    });
   }
 
   function updateFolderStatus(msg){
@@ -193,5 +222,5 @@ const Playlist = (() => {
 
   function escapeHtml(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));}
 
-  return {init, getItems, serialise, loadSerialised, render, addImages};
+  return {init, getItems, serialise, serialiseFullBundle, loadSerialised, render, addImages};
 })();
