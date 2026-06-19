@@ -6,6 +6,8 @@ const Playlist = (() => {
 
   const textBox = () => document.getElementById('affirmationInput');
   const folderStatus = () => document.getElementById('imageFolderStatus');
+  const imageInput = () => document.getElementById('imageFileInput');
+  const imageFolderInput = () => document.getElementById('imageFolderInput');
 
   function init(){
     const addTextBtn = document.getElementById('addTextBtn');
@@ -37,20 +39,57 @@ const Playlist = (() => {
       if(confirm('Clear playlist?')){
         textBox().value='';
         items=[];
+        media=[];
         render();
       }
     };
 
-    document.getElementById('selectImagesBtn').onclick=()=>document.getElementById('imageFileInput').click();
-    document.getElementById('selectImageFolderBtn').onclick=()=>document.getElementById('imageFolderInput').click();
-    document.getElementById('imageFileInput').addEventListener('change',e=>{addImages([...e.target.files], true); e.target.value='';});
-    document.getElementById('imageFolderInput').addEventListener('change',e=>{addImages([...e.target.files], true); e.target.value=''; updateFolderStatus('Images loaded from selected folder.');});
+    // Android note:
+    // Some Android gallery/photo-picker apps ignore the HTML "multiple" attribute and return only one image.
+    // This code keeps previously selected images and lets users press Select Images repeatedly to append more.
+    // Where supported, the File System Access API is used first because it honours multiple selection more reliably.
+    document.getElementById('selectImagesBtn').onclick=openImageSelector;
+    document.getElementById('selectImageFolderBtn').onclick=()=>imageFolderInput().click();
 
-    makeDrop(document.getElementById('playlistList'), files=>addImages(files,true),'image');
+    imageInput().setAttribute('multiple','multiple');
+    imageInput().setAttribute('accept','image/*,.png,.jpg,.jpeg,.gif,.webp,.bmp,.svg');
+    imageInput().addEventListener('change',e=>{
+      const files=[...e.target.files];
+      addImages(files, true, 'selected');
+      e.target.value='';
+    });
+
+    imageFolderInput().addEventListener('change',e=>{
+      addImages([...e.target.files], true, 'folder');
+      e.target.value='';
+    });
+
+    makeDrop(document.getElementById('playlistList'), files=>addImages(files,true,'dropped'),'image');
     const mediaList = document.getElementById('mediaList');
-    if (mediaList) makeDrop(mediaList, files=>addImages(files,false),'image');
+    if (mediaList) makeDrop(mediaList, files=>addImages(files,false,'dropped'),'image');
 
     render();
+  }
+
+  async function openImageSelector(){
+    // Prefer modern picker when available. It is better for genuine multi-select on supported browsers.
+    if(window.showOpenFilePicker){
+      try{
+        const handles = await window.showOpenFilePicker({
+          multiple:true,
+          excludeAcceptAllOption:false,
+          types:[{description:'Images', accept:{'image/*':['.png','.jpg','.jpeg','.gif','.webp','.bmp','.svg']}}]
+        });
+        const files=[];
+        for(const h of handles) files.push(await h.getFile());
+        addImages(files, true, 'selected');
+        return;
+      }catch(err){
+        // User cancelled or API blocked: fall back to the normal input.
+        if(err && err.name==='AbortError') return;
+      }
+    }
+    imageInput().click();
   }
 
   function textItems(){
@@ -74,14 +113,24 @@ const Playlist = (() => {
     reader.readAsText(file);
   }
 
-  function addImages(files, addToPlaylist){
-    const images=files.filter(f=>f.type.startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(f.name));
+  function isImageFile(f){
+    return !!f && (String(f.type||'').startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(f.name||''));
+  }
+
+  function addImages(files, addToPlaylist, source='selected'){
+    const images=(files||[]).filter(isImageFile);
     images.forEach(file=>{
-      const obj={type:'image', name:file.webkitRelativePath || file.name, url:URL.createObjectURL(file), label:file.name};
+      const obj={type:'image', name:file.webkitRelativePath || file.name || 'Image', url:URL.createObjectURL(file), label:file.name || 'Image'};
       media.push(obj);
       if(addToPlaylist) items.push(obj);
     });
-    if(images.length) updateFolderStatus(`${images.length} image${images.length===1?'':'s'} loaded.`);
+    if(images.length){
+      const extra = images.length===1 ? ' If your Android gallery only allows one at a time, tap Select Images again to add more.' : '';
+      const sourceText = source==='folder' ? 'from folder' : source==='dropped' ? 'by drag and drop' : 'selected';
+      updateFolderStatus(`${images.length} image${images.length===1?'':'s'} ${sourceText}. Total images/pauses: ${items.filter(x=>x.type!=='text').length}.${extra}`);
+    }else if(files && files.length){
+      updateFolderStatus('No supported image files were found in that selection.');
+    }
     render();
   }
 
@@ -143,6 +192,11 @@ const Playlist = (() => {
     });
     textBox().value=text.filter(Boolean).join('\n');
     render();
+  }
+
+  function updateFolderStatus(msg){
+    const el=folderStatus();
+    if(el) el.textContent=msg;
   }
 
   function escapeHtml(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));}
