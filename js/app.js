@@ -3,27 +3,41 @@ const App = (()=>{
   function init(){
     applyBranding();
     document.querySelectorAll('.navBtn').forEach(b=>b.onclick=()=>openTab(b.dataset.tab));
-    document.getElementById('dashboardControlsBtn').onclick=()=>document.getElementById('allControlsPanel').classList.toggle('hidden');
-    document.getElementById('projectNameInput').oninput=e=>{state.projectName=e.target.value||'Untitled Project'; updateCounts(); Storage.saveLocal();};
-    document.getElementById('saveProjectBtn').onclick=Storage.downloadProject;
-    document.getElementById('exportBundleBtn').onclick=Storage.downloadBundle;
-    document.getElementById('importBundleBtn').onclick=()=>document.getElementById('bundleImportInput').click();
-    document.getElementById('bundleImportInput').addEventListener('change',importBundle);
-    document.getElementById('newProjectBtn').onclick=()=>{if(confirm('Start a new project?')){localStorage.removeItem('ssp_project_v21'); location.reload();}};
-    document.getElementById('importProjectBtn').onclick=()=>document.getElementById('playlistImportInput').click();
-    document.getElementById('playlistImportInput').addEventListener('change',importProject);
-    document.getElementById('themeBtn').onclick=()=>{document.body.classList.toggle('light'); Storage.saveLocal();};
-    document.getElementById('resetStatsBtn').onclick=()=>{if(confirm('Reset statistics?')) Stats.reset();};
-    document.getElementById('viewDashboardBtn').onclick=()=>setViewMode('dashboard');
-    document.getElementById('viewFocusBtn').onclick=()=>setViewMode('focus');
-    document.getElementById('viewPresentationBtn').onclick=()=>setViewMode('presentation');
-    Playlist.init(); AudioStudio.init(); Player.init(); buildAllControls(); loadSaved(); updateCounts(); Stats.render();
+    bind('dashboardControlsBtn','click',()=>document.getElementById('allControlsPanel').classList.toggle('hidden'));
+    bind('projectNameInput','input',e=>{state.projectName=e.target.value||'Untitled Project'; updateCounts(); Storage.saveEverything();});
+
+    bind('saveProjectBtn','click',Storage.downloadProject);
+    bind('exportBundleBtn','click',Storage.downloadBundle);
+    bind('importBundleBtn','click',()=>document.getElementById('bundleImportInput').click());
+    bind('bundleImportInput','change',importBundle);
+
+    bind('chooseProjectsFolderBtn','click',Storage.chooseProjectsFolder);
+    bind('saveToFolderBtn','click',()=>Storage.saveToProjectFile(false));
+    bind('saveAsToFolderBtn','click',()=>Storage.saveToProjectFile(true));
+    bind('openProjectFileBtn','click',Storage.openProjectFile);
+    bind('projectFileInput','change',Storage.importProjectFileFallback);
+
+    bind('newProjectBtn','click',async()=>{if(confirm('Start a new project? This will clear the locally saved project on this device.')){await Storage.clearLocalProject(); location.reload();}});
+    bind('saveLocalProjectBtn','click',()=>Storage.saveFullLocal(true));
+    bind('loadLocalProjectBtn','click',async()=>{const data=await Storage.loadFullLocal(); if(data){applyProjectData(data,false); alert('Local project loaded.');} else alert('No local project is saved on this device yet.');});
+    bind('clearLocalProjectBtn','click',async()=>{if(confirm('Clear the locally saved project from this device?')){await Storage.clearLocalProject(); alert('Local project cleared.');}});
+    bind('importProjectBtn','click',()=>document.getElementById('playlistImportInput').click());
+    bind('playlistImportInput','change',importProject);
+    bind('themeBtn','click',()=>{document.body.classList.toggle('light'); Storage.saveEverything();});
+    bind('resetFactoryBtn','click',()=>{if(confirm('Reset player and image settings to factory defaults?')) Player.resetFactoryDefaults();});
+    bind('resetStatsBtn','click',()=>{if(confirm('Reset statistics?')) Stats.reset();});
+    bind('viewDashboardBtn','click',()=>setViewMode('dashboard'));
+    bind('viewFocusBtn','click',()=>setViewMode('focus'));
+    bind('viewPresentationBtn','click',()=>setViewMode('presentation'));
+    Playlist.init(); AudioStudio.init(); Player.init(); buildAllControls(); loadSaved(); updateCounts(); Stats.render(); Storage.updateProjectFolderStatus?.();
     if('serviceWorker' in navigator){ navigator.serviceWorker.register('./sw.js').catch(()=>{}); }
     window.addEventListener('keydown',e=>{ if(e.target.matches('input,textarea,select'))return; const k=e.key.toLowerCase(); if(k==='h') setViewMode(state.viewMode==='dashboard'?'focus':'dashboard'); if(k==='d') setViewMode('dashboard'); if(k==='p') setViewMode('presentation'); });
   }
 
+  function bind(id,event,fn){ const el=document.getElementById(id); if(el) el.addEventListener(event,fn); }
+
   function applyBranding(){
-    const cfg = window.APP_CONFIG || APP_CONFIG || {version:'2.2.5',build:'2026-06-19',copyright:'© JR Hypnotherapy 2026',name:'Subconscious Studio Pro'};
+    const cfg = window.APP_CONFIG || APP_CONFIG || {version:'2.2.6',build:'2026-06-19',copyright:'© JR Hypnotherapy 2026',name:'Subconscious Studio Pro'};
     const set=(id,text)=>{ const el=document.getElementById(id); if(el) el.textContent=text; };
     set('splashVersion', 'Version ' + cfg.version);
     set('bannerVersion', 'v' + cfg.version);
@@ -45,11 +59,11 @@ const App = (()=>{
     shell.classList.toggle('focusMode',mode==='focus'); shell.classList.toggle('presentationMode',mode==='presentation'); stage.classList.toggle('presentation',mode==='presentation');
     if(mode!=='dashboard' && stage.classList.contains('hidden')) Player.start();
     if(mode==='dashboard') stage.classList.remove('presentation');
-    Storage.saveLocal();
+    Storage.saveEverything();
   }
   function updateCounts(){document.getElementById('currentProjectName').textContent=state.projectName; document.getElementById('dashItemCount').textContent=Playlist.getItems().length;}
 
-  function applyProjectData(data){
+  function applyProjectData(data, saveAfter=true){
     if(data.projectName){state.projectName=data.projectName; document.getElementById('projectNameInput').value=state.projectName;}
     if(data.theme==='light') document.body.classList.add('light'); else if(data.theme==='dark') document.body.classList.remove('light');
     if(data.playlist)Playlist.loadSerialised(data.playlist);
@@ -57,7 +71,7 @@ const App = (()=>{
     if(data.stats)Stats.load(data.stats);
     if(data.viewMode) setViewMode(data.viewMode);
     updateCounts();
-    Storage.saveLocal();
+    if(saveAfter) Storage.saveEverything();
   }
 
   function importBundle(e){
@@ -78,8 +92,8 @@ const App = (()=>{
     e.target.value='';
   }
 
-  function importProject(e){ const file=e.target.files[0]; if(!file)return; const reader=new FileReader(); reader.onload=()=>{ try{ const data=JSON.parse(reader.result); applyProjectData(data); } catch{ document.getElementById('affirmationInput').value=reader.result; Playlist.render(); } updateCounts(); Storage.saveLocal(); }; reader.readAsText(file); e.target.value=''; }
-  function loadSaved(){ const data=Storage.loadLocal(); if(!data)return; applyProjectData(data); }
-  return {init,state,updateCounts,setViewMode};
+  function importProject(e){ const file=e.target.files[0]; if(!file)return; const reader=new FileReader(); reader.onload=()=>{ try{ const data=JSON.parse(reader.result); applyProjectData(data); } catch{ document.getElementById('affirmationInput').value=reader.result; Playlist.render(); } updateCounts(); Storage.saveEverything(); }; reader.readAsText(file); e.target.value=''; }
+  async function loadSaved(){ const data=await Storage.loadFullLocal(); if(!data)return; applyProjectData(data,false); }
+  return {init,state,updateCounts,setViewMode,applyProjectData};
 })();
 window.addEventListener('DOMContentLoaded',App.init);

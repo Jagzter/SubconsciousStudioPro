@@ -16,7 +16,7 @@ const Playlist = (() => {
     textBox().addEventListener('input',()=>{
       App.updateCounts();
       Stats.render();
-      Storage.saveLocal();
+      Storage.saveEverything();
     });
 
     const loadTxtBtn=document.getElementById('loadTxtBtn');
@@ -146,7 +146,7 @@ const Playlist = (() => {
     }
     App.updateCounts();
     Stats.render();
-    Storage.saveLocal();
+    Storage.saveEverything();
   }
 
   function row(it,i,playlist){
